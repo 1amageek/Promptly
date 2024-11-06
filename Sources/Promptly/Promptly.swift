@@ -16,10 +16,11 @@ import SwiftUI
 ///             text: $text,
 ///             edge: .bottom,
 ///             source: { searchText in
-///                 users.filter { user in
+///                 let filtered = users.filter { user in
 ///                     searchText.isEmpty ||
 ///                     user.name.localizedCaseInsensitiveContains(searchText)
 ///                 }
+///                 return filtered
 ///             },
 ///             display: { user in user.name }
 ///         ) { user in
@@ -36,8 +37,10 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
     @State private var hoveredSuggestion: T.ID?
     @State private var lastCompletedMentionEnd: String.Index?
     @State private var selectedIndex: Int = 0
+    @State private var isLoading: Bool = false
+    @State private var searchTask: Task<Void, Never>?
     
-    var source: (String) -> [T]
+    var source: (String) async throws -> [T]
     var displayString: (T) -> String
     var content: (T) -> Content
     var edge: Edge
@@ -46,13 +49,13 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
     /// - Parameters:
     ///   - text: The binding to the text being edited
     ///   - edge: The edge where suggestions appear (.top or .bottom)
-    ///   - source: A closure that returns filtered suggestions based on search text
+    ///   - source: An async closure that returns filtered suggestions based on search text
     ///   - keyPath: A key path to the property used for display text
     ///   - content: A closure that creates the view for each suggestion
     public init<V: CustomStringConvertible>(
         text: Binding<String>,
-        edge: Edge = .bottom,
-        source: @escaping (String) -> [T],
+        edge: Edge = .top,
+        source: @escaping (String) async throws -> [T],
         display keyPath: KeyPath<T, V>,
         @ViewBuilder content: @escaping (T) -> Content
     ) {
@@ -67,13 +70,13 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
     /// - Parameters:
     ///   - text: The binding to the text being edited
     ///   - edge: The edge where suggestions appear (.top or .bottom)
-    ///   - source: A closure that returns filtered suggestions based on search text
+    ///   - source: An async closure that returns filtered suggestions based on search text
     ///   - display: A closure that returns the display string for an item
     ///   - content: A closure that creates the view for each suggestion
     public init(
         text: Binding<String>,
-        edge: Edge = .bottom,
-        source: @escaping (String) -> [T],
+        edge: Edge = .top,
+        source: @escaping (String) async throws -> [T],
         display: @escaping (T) -> String,
         @ViewBuilder content: @escaping (T) -> Content
     ) {
@@ -110,16 +113,33 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
     
     /// Updates the suggestions list based on the current text input.
     private func updateSuggestions() {
+        // Cancel the previous task if it exists
+        searchTask?.cancel()
+        
         if text.contains("@") {
             if let (searchText, range) = findMentionRange() {
-                suggestions = source(searchText)
+                isLoading = true
                 currentWordRange = range
-                showSuggestions = true
                 selectedIndex = 0
+                
+                searchTask = Task {
+                    defer { isLoading = false }
+                    
+                    do {
+                        let results = try await source(searchText)
+                        guard !Task.isCancelled else { return }
+                        suggestions = results
+                        showSuggestions = true
+                    } catch {
+                        suggestions = []
+                        print("Error fetching suggestions: \(error)")
+                    }
+                }
                 return
             }
         }
         showSuggestions = false
+        suggestions = []
     }
     
     /// Selects a suggestion and replaces the current mention text.
@@ -157,7 +177,7 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
             }
             .scrollContentBackground(.hidden)
             
-            if showSuggestions && !suggestions.isEmpty {
+            if showSuggestions {
                 suggestionsList
                     .offset(y: suggestionOffset())
             }
@@ -249,9 +269,19 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
                 }
             }
         }
-        .frame(maxWidth: 180, maxHeight: 180)
+        .safeAreaPadding(.vertical, 4)
+        .frame(maxWidth: .infinity, maxHeight: 180)
         .background(.regularMaterial)
         .cornerRadius(8)
         .shadow(radius: 4)
     }
 }
+
+/// A model representing a user for mention suggestions.
+struct User: Identifiable, Sendable {
+    /// The unique identifier for the user.
+    var id: String
+    /// The display name of the user.
+    var name: String
+}
+
