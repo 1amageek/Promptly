@@ -1,189 +1,33 @@
 import SwiftUI
 
-#if os(macOS)
-struct CustomTextEditor: NSViewRepresentable {
-    @Binding var text: String
-    var onSubmit: () -> Bool
-    
-    class Coordinator: NSObject, NSTextViewDelegate {
-        var text: Binding<String>
-        var onSubmit: () -> Bool
-        
-        init(text: Binding<String>, onSubmit: @escaping () -> Bool) {
-            self.text = text
-            self.onSubmit = onSubmit
-        }
-        
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            text.wrappedValue = textView.string
-            highlightMentions(in: textView)
-        }
-        
-        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            if commandSelector == #selector(NSStandardKeyBindingResponding.insertNewline(_:)) {
-                return onSubmit()
-            }
-            return false
-        }
-        
-        @MainActor
-        private func highlightMentions(in textView: NSTextView) {
-            let attributedString = NSMutableAttributedString(string: textView.string)
-            // デフォルトの属性を設定
-            let defaultAttributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
-                .foregroundColor: NSColor.textColor
-            ]
-            attributedString.setAttributes(defaultAttributes, range: NSRange(location: 0, length: attributedString.length))
-            
-            // メンションのパターンを検索して色を付ける
-            let pattern = "@\\w+"
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
-            
-            let matches = regex.matches(
-                in: textView.string,
-                range: NSRange(location: 0, length: textView.string.count)
-            )
-            
-            for match in matches {
-                attributedString.addAttribute(
-                    .foregroundColor,
-                    value: NSColor.controlAccentColor,
-                    range: match.range
-                )
-            }
-            
-            // 選択範囲を保持
-            let selectedRanges = textView.selectedRanges
-            
-            // 属性付きテキストを設定
-            textView.textStorage?.setAttributedString(attributedString)
-            
-            // 選択範囲を復元
-            textView.selectedRanges = selectedRanges
-        }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onSubmit: onSubmit)
-    }
-    
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        guard let textView = scrollView.documentView as? NSTextView else { return scrollView }
-        
-        textView.delegate = context.coordinator
-        textView.string = text
-        textView.isRichText = true // リッチテキストを有効化
-        textView.isEditable = true
-        textView.allowsUndo = true
-        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
-        
-        // 初期テキストのハイライトを適用
-        context.coordinator.textDidChange(Notification(name: Notification.Name(""), object: textView))
-        
-        return scrollView
-    }
-    
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else { return }
-        if textView.string != text {
-            textView.string = text
-            context.coordinator.textDidChange(Notification(name: Notification.Name(""), object: textView))
-        }
-    }
-}
-#else
-struct CustomTextEditor: UIViewRepresentable {
-    @Binding var text: String
-    var onSubmit: () -> Bool
-    
-    class Coordinator: NSObject, UITextViewDelegate {
-        var text: Binding<String>
-        var onSubmit: () -> Bool
-        
-        init(text: Binding<String>, onSubmit: @escaping () -> Bool) {
-            self.text = text
-            self.onSubmit = onSubmit
-        }
-        
-        func textViewDidChange(_ textView: UITextView) {
-            text.wrappedValue = textView.text
-            highlightMentions(in: textView)
-        }
-        
-        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
-            if text == "\n" {
-                return !onSubmit()
-            }
-            return true
-        }
-        
-        private func highlightMentions(in textView: UITextView) {
-            let attributedString = NSMutableAttributedString(string: textView.text)
-            // デフォルトの属性を設定
-            let defaultAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: UIFont.systemFontSize),
-                .foregroundColor: UIColor.label
-            ]
-            attributedString.setAttributes(defaultAttributes, range: NSRange(location: 0, length: attributedString.length))
-            
-            // メンションのパターンを検索して色を付ける
-            let pattern = "@\\w+"
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
-            
-            let matches = regex.matches(
-                in: textView.text,
-                range: NSRange(location: 0, length: textView.text.count)
-            )
-            
-            for match in matches {
-                attributedString.addAttribute(
-                    .foregroundColor,
-                    value: UIColor.tintColor,
-                    range: match.range
-                )
-            }
-            
-            // 選択範囲を保持
-            let selectedRange = textView.selectedRange
-            
-            // 属性付きテキストを設定
-            textView.attributedText = attributedString
-            
-            // 選択範囲を復元
-            textView.selectedRange = selectedRange
-        }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onSubmit: onSubmit)
-    }
-    
-    func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
-        textView.delegate = context.coordinator
-        textView.text = text
-        textView.font = .systemFont(ofSize: UIFont.systemFontSize)
-        textView.isEditable = true
-        textView.backgroundColor = .clear
-        
-        // 初期テキストのハイライトを適用
-        context.coordinator.textViewDidChange(textView)
-        
-        return textView
-    }
-    
-    func updateUIView(_ textView: UITextView, context: Context) {
-        if textView.text != text {
-            textView.text = text
-            context.coordinator.textViewDidChange(textView)
-        }
-    }
-}
-#endif
-
+/// A view that provides mention suggestions while typing.
+/// Use this view when you want to implement a mention system in your text input.
+///
+/// ```swift
+/// struct ContentView: View {
+///     @State private var text = ""
+///     let users: [User] = [
+///         .init(id: "1", name: "john"),
+///         .init(id: "2", name: "steve")
+///     ]
+///
+///     var body: some View {
+///         Promptly(
+///             text: $text,
+///             edge: .bottom,
+///             source: { searchText in
+///                 users.filter { user in
+///                     searchText.isEmpty ||
+///                     user.name.localizedCaseInsensitiveContains(searchText)
+///                 }
+///             },
+///             display: { user in user.name }
+///         ) { user in
+///             Text(user.name)
+///         }
+///     }
+/// }
+/// ```
 public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
     @Binding var text: String
     @State private var suggestions: [T] = []
@@ -196,31 +40,52 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
     var source: (String) -> [T]
     var displayString: (T) -> String
     var content: (T) -> Content
+    var edge: Edge
     
+    /// Creates a mention suggestion view with a key path for display text.
+    /// - Parameters:
+    ///   - text: The binding to the text being edited
+    ///   - edge: The edge where suggestions appear (.top or .bottom)
+    ///   - source: A closure that returns filtered suggestions based on search text
+    ///   - keyPath: A key path to the property used for display text
+    ///   - content: A closure that creates the view for each suggestion
     public init<V: CustomStringConvertible>(
         text: Binding<String>,
+        edge: Edge = .bottom,
         source: @escaping (String) -> [T],
         display keyPath: KeyPath<T, V>,
         @ViewBuilder content: @escaping (T) -> Content
     ) {
         self._text = text
+        self.edge = edge
         self.source = source
         self.displayString = { item in String(describing: item[keyPath: keyPath]) }
         self.content = content
     }
     
+    /// Creates a mention suggestion view with a custom display string closure.
+    /// - Parameters:
+    ///   - text: The binding to the text being edited
+    ///   - edge: The edge where suggestions appear (.top or .bottom)
+    ///   - source: A closure that returns filtered suggestions based on search text
+    ///   - display: A closure that returns the display string for an item
+    ///   - content: A closure that creates the view for each suggestion
     public init(
         text: Binding<String>,
+        edge: Edge = .bottom,
         source: @escaping (String) -> [T],
         display: @escaping (T) -> String,
         @ViewBuilder content: @escaping (T) -> Content
     ) {
         self._text = text
+        self.edge = edge
         self.source = source
         self.displayString = display
         self.content = content
     }
     
+    /// Finds the range of the current mention being typed.
+    /// - Returns: A tuple containing the search text and its range in the text.
     private func findMentionRange() -> (searchText: String, range: Range<String.Index>)? {
         guard let atIndex = text.lastIndex(of: "@") else { return nil }
         
@@ -243,6 +108,7 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
         return (searchText, atIndex..<text.endIndex)
     }
     
+    /// Updates the suggestions list based on the current text input.
     private func updateSuggestions() {
         if text.contains("@") {
             if let (searchText, range) = findMentionRange() {
@@ -256,6 +122,8 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
         showSuggestions = false
     }
     
+    /// Selects a suggestion and replaces the current mention text.
+    /// - Parameter item: The selected suggestion item
     private func selectSuggestion(_ item: T) {
         guard let range = currentWordRange else { return }
         
@@ -263,6 +131,19 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
         text.replaceSubrange(range, with: replacement + " ")
         lastCompletedMentionEnd = nil
         showSuggestions = false
+    }
+    
+    /// Calculates the vertical offset for the suggestions list.
+    /// - Returns: The offset value based on the specified edge.
+    private func suggestionOffset() -> CGFloat {
+        switch edge {
+        case .top:
+            return -180 // Height of suggestions list + padding
+        case .bottom:
+            return 24
+        default:
+            return 24
+        }
     }
     
     public var body: some View {
@@ -274,10 +155,11 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
                 }
                 return false
             }
+            .scrollContentBackground(.hidden)
             
             if showSuggestions && !suggestions.isEmpty {
                 suggestionsList
-                    .offset(y: 30)
+                    .offset(y: suggestionOffset())
             }
         }
         .onChange(of: text) { oldValue, newValue in
@@ -322,6 +204,11 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
 #endif
     }
     
+    /// Determines if a suggestion item should be highlighted.
+    /// - Parameters:
+    ///   - index: The index of the suggestion item
+    ///   - id: The ID of the suggestion item
+    /// - Returns: A Boolean indicating whether the item should be highlighted
     func selectedColor(index: Int, id: T.ID?) -> Bool {
 #if os(macOS)
         return selectedIndex == index || hoveredSuggestion == id
@@ -362,39 +249,9 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
                 }
             }
         }
-        .frame(maxWidth: 200, maxHeight: 200)
+        .frame(maxWidth: 180, maxHeight: 180)
         .background(.regularMaterial)
         .cornerRadius(8)
         .shadow(radius: 4)
     }
-}
-
-struct User: Identifiable, Sendable {
-    var id: String
-    var name: String
-}
-
-#Preview {
-    @Previewable @State var text: String = ""
-    
-    let users: [User] = [
-        .init(id: "0", name: "johny"),
-        .init(id: "1", name: "jobs"),
-        .init(id: "2", name: "steave"),
-        .init(id: "3", name: "wozniak")
-    ]
-    
-    Promptly(
-        text: $text,
-        source: { searchText in
-            users.filter { user in
-                searchText.isEmpty ||
-                user.name.localizedCaseInsensitiveContains(searchText)
-            }
-        },
-        display: { user in "\(user.name)" }
-    ) { user in
-        Text(user.name)
-    }
-    .frame(width: 300, height: 170)
 }
