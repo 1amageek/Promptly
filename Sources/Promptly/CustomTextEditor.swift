@@ -57,6 +57,7 @@ struct CustomTextEditor: NSViewRepresentable {
         
         /// Handles text changes in the text view
         /// - Parameter notification: The notification containing the text view
+        @MainActor
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             text.wrappedValue = textView.string
