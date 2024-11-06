@@ -218,6 +218,7 @@ struct CustomTextEditor: UIViewRepresentable {
         
         /// Handles text changes in the text view
         /// - Parameter textView: The text view that changed
+        @MainActor
         func textViewDidChange(_ textView: UITextView) {
             text.wrappedValue = textView.text
             highlightMentions(in: textView)
