@@ -11,9 +11,14 @@ let package = Package(
             name: "Promptly",
             targets: ["Promptly"]),
     ],
+    dependencies: [
+    ],
     targets: [
         .target(
-            name: "Promptly"),
+            name: "Promptly",
+            dependencies: [
+            ]
+        ),
         .testTarget(
             name: "PromptlyTests",
             dependencies: ["Promptly"]

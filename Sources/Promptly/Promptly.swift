@@ -270,12 +270,10 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
             }
         }
         .safeAreaPadding(.vertical, 4)
-        .frame(maxWidth: .infinity, maxHeight: 180)
-        .background(.regularMaterial)
-        .cornerRadius(8)
-        .shadow(radius: 4)
     }
 }
+
+
 
 /// A model representing a user for mention suggestions.
 struct User: Identifiable, Sendable {
@@ -284,4 +282,63 @@ struct User: Identifiable, Sendable {
     /// The display name of the user.
     var name: String
 }
+
+#Preview {
+    @Previewable @State var text: String = ""
+    
+    let users: [User] = [
+        .init(id: "0", name: "johny"),
+        .init(id: "1", name: "jobs"),
+        .init(id: "2", name: "steave"),
+        .init(id: "3", name: "wozniak")
+    ]
+    
+    HStack {
+        Promptly(
+            text: $text,
+            source: { searchText in
+                users.filter { user in
+                    searchText.isEmpty ||
+                    user.name.localizedCaseInsensitiveContains(searchText)
+                }
+            },
+            display: { user in "\(user.name)" }
+        ) { user in
+            Text(user.name)
+        }
+            .font(.system(size: 14))
+            .frame(minHeight: 30)
+            .frame(maxHeight: 90)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(lineWidth: 1)
+                    .fill(.white.opacity(0.5))
+            }
+            .background(.red)
+        
+        TextEditor(text: $text)
+            .font(.system(size: 14))
+            .scrollContentBackground(.hidden)
+            .frame(minHeight: 30)
+            .frame(maxHeight: 90)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(lineWidth: 1)
+                    .fill(.white.opacity(0.5))
+            }
+        
+            .background(.red)
+    }
+
+    .frame(width: 300, height: 170)
+    .padding(40)
+}
+
+
 
