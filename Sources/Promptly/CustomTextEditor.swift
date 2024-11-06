@@ -57,11 +57,12 @@ struct CustomTextEditor: NSViewRepresentable {
         
         /// Handles text changes in the text view
         /// - Parameter notification: The notification containing the text view
-        @MainActor
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
-            text.wrappedValue = textView.string
-            highlightMentions(in: textView)
+            Task { @MainActor in
+                text.wrappedValue = textView.string
+                highlightMentions(in: textView)
+            }
         }
         
         /// Handles special key commands in the text view
@@ -219,10 +220,11 @@ struct CustomTextEditor: UIViewRepresentable {
         
         /// Handles text changes in the text view
         /// - Parameter textView: The text view that changed
-        @MainActor
         func textViewDidChange(_ textView: UITextView) {
-            text.wrappedValue = textView.text
-            highlightMentions(in: textView)
+            Task { @MainActor in
+                text.wrappedValue = textView.text
+                highlightMentions(in: textView)
+            }
         }
         
         /// Handles text changes and special characters in the text view
