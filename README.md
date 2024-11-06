@@ -1,34 +1,25 @@
 # Promptly
 
-A lightweight and customizable mention suggestion view for SwiftUI. It provides real-time mention suggestions with a modern UI and keyboard navigation support.
-
-![Promptly Demo](demo.gif)
+A lightweight and customizable mention suggestion view for SwiftUI. Promptly provides an elegant way to add mention functionality to your text input with async support.
 
 ## Features
 
-- 🎯 Real-time mention suggestions
-- 🎨 Customizable suggestion view
-- ⌨️ Full keyboard navigation support
-- 🖥️ macOS and iOS support
+- 🔄 Async/await support for suggestion sources
+- ⌨️ Full keyboard navigation
+- 🎨 Customizable suggestion views
 - 🌈 Syntax highlighting for mentions
-- 🔄 Seamless integration with SwiftUI
+- 💻 Cross-platform (iOS & macOS)
+- 🪶 Lightweight and easy to use
 
 ## Installation
 
 ### Swift Package Manager
 
-Add the following to your `Package.swift` file:
-
 ```swift
 dependencies: [
-    .package(url: "https://github.com/1amageek/Promptly.git", from: "1.0.0")
+    .package(url: "https://github.com/yourusername/Promptly.git", from: "1.0.0")
 ]
 ```
-
-Or add it directly through Xcode:
-1. Go to File > Add Packages
-2. Paste the repository URL: `https://github.com/1amageek/Promptly.git`
-3. Click "Add Package"
 
 ## Usage
 
@@ -37,19 +28,13 @@ Or add it directly through Xcode:
 ```swift
 struct ContentView: View {
     @State private var text = ""
-    let users: [User] = [
-        .init(id: "1", name: "john"),
-        .init(id: "2", name: "steve")
-    ]
     
     var body: some View {
         Promptly(
             text: $text,
             source: { searchText in
-                users.filter { user in
-                    searchText.isEmpty ||
-                    user.name.localizedCaseInsensitiveContains(searchText)
-                }
+                // Fetch your data asynchronously
+                try await fetchUsers(matching: searchText)
             },
             display: { user in user.name }
         ) { user in
@@ -59,16 +44,17 @@ struct ContentView: View {
 }
 ```
 
-### Customizing Suggestion Position
+### Async Data Source
 
-You can choose where the suggestions appear by specifying the `edge` parameter:
+The source closure is async and can throw errors, making it perfect for network requests:
 
 ```swift
 Promptly(
     text: $text,
-    edge: .top, // or .bottom (default)
     source: { searchText in
-        // Your filtering logic
+        // Example with URLSession
+        let users = try await APIClient.searchUsers(matching: searchText)
+        return users
     },
     display: { user in user.name }
 ) { user in
@@ -78,45 +64,85 @@ Promptly(
 
 ### Custom Suggestion View
 
-Customize the appearance of each suggestion by providing your own view:
+Customize how suggestions appear:
 
 ```swift
 Promptly(
     text: $text,
     source: { searchText in
-        users.filter { user in
-            user.name.localizedCaseInsensitiveContains(searchText)
-        }
+        try await fetchUsers(matching: searchText)
     },
     display: { user in user.name }
 ) { user in
     HStack {
-        Circle()
-            .fill(Color.blue)
-            .frame(width: 24, height: 24)
+        AsyncImage(url: user.avatarURL) { image in
+            image.resizable()
+        } placeholder: {
+            Color.gray
+        }
+        .frame(width: 24, height: 24)
+        .clipShape(Circle())
         
         VStack(alignment: .leading) {
             Text(user.name)
                 .font(.headline)
             Text("@\(user.username)")
                 .font(.caption)
-                .foregroundColor(.gray)
+                .foregroundColor(.secondary)
         }
     }
 }
 ```
 
-## Keyboard Navigation
+### Suggestion Position
 
-### macOS
+Choose where suggestions appear:
+
+```swift
+Promptly(
+    text: $text,
+    edge: .top, // or .bottom (default)
+    source: { searchText in
+        try await fetchUsers(matching: searchText)
+    },
+    display: { user in user.name }
+) { user in
+    Text(user.name)
+}
+```
+
+### Keyboard Navigation
+
+**macOS**
 - `↑` / `↓`: Navigate through suggestions
 - `Enter`: Select current suggestion
-- `Esc`: Dismiss suggestions
+- `Esc`: Close suggestions
 - `Ctrl + N` / `Ctrl + P`: Alternative navigation
 
-### iOS
+**iOS**
 - Return key selects the current suggestion
 
+## Best Practices
+
+1. **Debouncing**: Consider implementing debouncing in your source closure for network requests:
+```swift
+private func fetchUsers(matching text: String) async throws -> [User] {
+    try await Task.sleep(nanoseconds: 300_000_000) // 300ms debounce
+    return try await apiClient.searchUsers(matching: text)
+}
+```
+
+2. **Error Handling**: Handle potential errors in your source closure:
+```swift
+source: { searchText in
+    do {
+        return try await fetchUsers(matching: searchText)
+    } catch {
+        logger.error("Failed to fetch users: \(error)")
+        return []
+    }
+}
+```
 
 ## Contributing
 
