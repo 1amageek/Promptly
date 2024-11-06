@@ -39,6 +39,7 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
     @State private var selectedIndex: Int = 0
     @State private var isLoading: Bool = false
     @State private var searchTask: Task<Void, Never>?
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
     
     var source: (String) async throws -> [T]
     var displayString: (T) -> String
@@ -158,11 +159,11 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
     private func suggestionOffset() -> CGFloat {
         switch edge {
         case .top:
-            return -180 // Height of suggestions list + padding
+            return -40 // Height of suggestions list + padding
         case .bottom:
-            return 24
+            return 40
         default:
-            return 24
+            return 40
         }
     }
     
@@ -176,11 +177,14 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
                 return false
             }
             .scrollContentBackground(.hidden)
-            
-            if showSuggestions {
-                suggestionsList
-                    .offset(y: suggestionOffset())
+            .overlay(alignment: self.edge == .bottom ? .top : .bottom) {
+                if showSuggestions {
+                    suggestionsList
+                        .offset(y: suggestionOffset())
+                        .zIndex(1)
+                }
             }
+  
         }
         .onChange(of: text) { oldValue, newValue in
             if newValue.count < oldValue.count {
@@ -237,6 +241,10 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
 #endif
     }
     
+    var hoverColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.1)
+    }
+    
     private var suggestionsList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 4) {
@@ -250,7 +258,7 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(
                                         selectedColor(index: index, id: suggestion.id)
-                                        ? Color.white.opacity(0.1)
+                                        ? hoverColor
                                         : Color.clear
                                     )
                             )
@@ -270,6 +278,10 @@ public struct Promptly<T: Sendable & Identifiable, Content: View>: View {
             }
         }
         .safeAreaPadding(.vertical, 4)
+        .frame(minHeight: 148)
+        .background(.thickMaterial)
+        .background(.windowBackground.opacity(0.2))
+        .clipShape(.rect(cornerRadius: 8))
     }
 }
 
@@ -290,12 +302,16 @@ struct User: Identifiable, Sendable {
         .init(id: "0", name: "johny"),
         .init(id: "1", name: "jobs"),
         .init(id: "2", name: "steave"),
-        .init(id: "3", name: "wozniak")
+        .init(id: "3", name: "wozniak"),
+        .init(id: "4", name: "james"),
+        .init(id: "5", name: "robert"),
+        .init(id: "6", name: "harry"),
     ]
     
-    HStack {
+    HStack(alignment: .bottom) {
         Promptly(
             text: $text,
+            edge: .top,
             source: { searchText in
                 users.filter { user in
                     searchText.isEmpty ||
@@ -311,32 +327,39 @@ struct User: Identifiable, Sendable {
             .frame(maxHeight: 90)
             .fixedSize(horizontal: false, vertical: true)
             .padding(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay {
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(lineWidth: 1)
-                    .fill(.white.opacity(0.5))
-            }
-            .background(.red)
-        
-        TextEditor(text: $text)
-            .font(.system(size: 14))
-            .scrollContentBackground(.hidden)
-            .frame(minHeight: 30)
-            .frame(maxHeight: 90)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(lineWidth: 1)
-                    .fill(.white.opacity(0.5))
+                    .fill(Color(.separatorColor))
             }
         
-            .background(.red)
+        Promptly(
+            text: $text,
+            edge: .bottom,
+            source: { searchText in
+                users.filter { user in
+                    searchText.isEmpty ||
+                    user.name.localizedCaseInsensitiveContains(searchText)
+                }
+            },
+            display: { user in "\(user.name)" }
+        ) { user in
+            Text(user.name)
+        }
+        .font(.system(size: 14))
+        .frame(minHeight: 30)
+        .frame(maxHeight: 90)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(EdgeInsets(top: 6, leading: 8, bottom: 6, trailing: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(lineWidth: 1)
+                .fill(Color(.separatorColor))
+        }
+        .frame(height: 200, alignment: .top)
     }
 
-    .frame(width: 300, height: 170)
+    .frame(width: 600, height: 200, alignment: .bottom)
     .padding(40)
 }
 
